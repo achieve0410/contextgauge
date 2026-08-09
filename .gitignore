@@ -1,0 +1,60 @@
+# Internal agent and local debug state
+.omo/
+.senpi/
+.debug/
+.debug-journal.md
+OMON_IMPLEMENTATION_REQUEST.md
+
+# Swift and Xcode generated output
+.build/
+.swiftpm/
+build/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/xcuserdata/
+**/xcuserdata/
+*.xcuserstate
+*.xcbkptlist
+*.xcscmblueprint
+*.dSYM/
+*.d
+*.dia
+*.o
+*.pcm
+*.swiftdeps
+*.swiftmodule
+*.swiftsourceinfo
+
+# Credentials, signing material, and local configuration
+.env
+.env.*
+!.env.example
+*.key
+*.p8
+*.p12
+*.pem
+*.mobileprovision
+auth.json
+.credentials.json
+credentials.json
+
+# Private usage, export, and diagnostic data
+*.csv
+*.db
+*.db-*
+*.log
+*.mdb
+*.profdata
+*.profraw
+*.sqlite
+*.sqlite-*
+*.trace
+*.jsonl
+!Tests/**/Fixtures/*.jsonl
+docs/evidence/
+screenshots/
+
+# macOS metadata and editor state
+.DS_Store
+*.swp
+*~

@@ -1,0 +1,380 @@
+import AppKit
+import Charts
+import SwiftUI
+import TokenHubMacCore
+
+enum TokenHubMenuLayout {
+    static func minimumHeight(
+        visibleScreenHeight: CGFloat
+    ) -> CGFloat {
+        min(420, maximumHeight(visibleScreenHeight: visibleScreenHeight))
+    }
+
+    static func maximumHeight(
+        visibleScreenHeight: CGFloat
+    ) -> CGFloat {
+        max(240, min(720, visibleScreenHeight - 16))
+    }
+}
+
+struct TokenHubMenuView: View {
+    @Environment(\.openSettings) private var openSettings
+    @ObservedObject var controller: MacDashboardController
+    var snapshotMode = false
+    var availableScreenHeight: CGFloat?
+
+    private var viewModel: DashboardViewModel {
+        controller.viewModel
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 14) {
+                    if snapshotMode {
+                        snapshotControls
+                    } else {
+                        controls
+                    }
+                    Divider()
+                    usageSummary
+                    Text(
+                        viewModel.isCostComplete
+                            ? "API-equivalent estimate; not a subscription invoice."
+                            : "Partial API estimate; unknown model costs excluded."
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    dailyUsageSection
+                    if snapshotMode {
+                        snapshotUsageRows
+                    } else {
+                        usageRows
+                    }
+                }
+                .padding(16)
+            }
+            Divider()
+            if snapshotMode {
+                snapshotFooter
+            } else {
+                footer
+            }
+        }
+        .frame(width: 420)
+        .frame(
+            minHeight: menuMinimumHeight,
+            maxHeight: menuMaximumHeight
+        )
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var menuMinimumHeight: CGFloat {
+        TokenHubMenuLayout.minimumHeight(
+            visibleScreenHeight: visibleScreenHeight
+        )
+    }
+
+    private var menuMaximumHeight: CGFloat {
+        return TokenHubMenuLayout.maximumHeight(
+            visibleScreenHeight: visibleScreenHeight
+        )
+    }
+
+    private var visibleScreenHeight: CGFloat {
+        availableScreenHeight
+            ?? NSScreen.screens.map(\.visibleFrame.height).min()
+            ?? 720
+    }
+
+    private var controls: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("Period")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Picker(
+                    "Period",
+                    selection: Binding(
+                        get: { controller.period },
+                        set: { controller.setPeriodFromView($0) }
+                    )
+                ) {
+                    ForEach(DashboardPeriod.allCases, id: \.self) {
+                        period in
+                        Text(period.title).tag(period)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+
+            Picker(
+                "Device",
+                selection: Binding(
+                    get: { controller.selectedDeviceID },
+                    set: { controller.setSelectedDeviceFromView($0) }
+                )
+            ) {
+                Text("All devices").tag(String?.none)
+                ForEach(controller.snapshot?.devices ?? [], id: \.id) {
+                    device in
+                    Text(device.name)
+                        .tag(String?.some(device.id))
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel("Device")
+        }
+    }
+
+    private var snapshotControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Period")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Picker(
+                    "Period",
+                    selection: .constant(controller.period)
+                ) {
+                    ForEach(DashboardPeriod.allCases, id: \.self) {
+                        period in
+                        Text(period.title).tag(period)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+            Text(
+                controller.snapshot?.devices.first?.name
+                    ?? "All devices"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private var usageSummary: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                tokenMetric
+                Spacer()
+                costMetric
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                tokenMetric
+                costMetric
+            }
+        }
+    }
+
+    private var tokenMetric: some View {
+        metric(
+            title: "Tokens",
+            value: viewModel.totalTokens.formatted(
+                .number.notation(.compactName)
+            )
+        )
+    }
+
+    private var costMetric: some View {
+        metric(
+            title: "Estimated USD",
+            value: NSDecimalNumber(
+                decimal: viewModel.estimatedCostUSD
+            ).doubleValue.formatted(.currency(code: "USD"))
+        )
+    }
+
+    private func metric(
+        title: String,
+        value: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.title2.monospacedDigit())
+                .fontWeight(.semibold)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var dailyUsageSection: some View {
+        if !viewModel.dailySeries.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Daily token usage")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Chart(viewModel.dailySeries, id: \.day) { point in
+                    BarMark(
+                        x: .value("Date", point.day, unit: .day),
+                        y: .value("Tokens", point.totalTokens)
+                    )
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityLabel(
+                        point.day.formatted(
+                            date: .abbreviated,
+                            time: .omitted
+                        )
+                    )
+                    .accessibilityValue(
+                        "\(point.totalTokens.formatted()) tokens"
+                    )
+                }
+                .chartXAxis {
+                    AxisMarks(
+                        values: .automatic(
+                            desiredCount: min(
+                                viewModel.dailySeries.count,
+                                5
+                            )
+                        )
+                    ) {
+                        AxisGridLine()
+                        AxisTick()
+                        AxisValueLabel(
+                            format: .dateTime
+                                .month(.abbreviated)
+                                .day()
+                        )
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisGridLine()
+                        AxisTick()
+                        AxisValueLabel {
+                            if let tokens = value.as(Int.self) {
+                                Text(
+                                    tokens.formatted(
+                                        .number.notation(.compactName)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+                .frame(height: 160)
+                .accessibilityLabel("Daily token usage chart")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var usageRows: some View {
+        if viewModel.rows.isEmpty {
+            ContentUnavailableView(
+                "No usage in this period",
+                systemImage: "chart.bar.xaxis"
+            )
+            .frame(height: 56)
+        } else {
+            modelRows(viewModel.rows)
+        }
+    }
+
+    @ViewBuilder
+    private var snapshotUsageRows: some View {
+        if viewModel.rows.isEmpty {
+            ContentUnavailableView(
+                "No usage in this period",
+                systemImage: "chart.bar.xaxis"
+            )
+            .frame(height: 56)
+        } else {
+            modelRows(Array(viewModel.rows.prefix(6)))
+        }
+    }
+
+    private func modelRows(
+        _ rows: [DashboardRow]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("By model")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            LazyVStack(spacing: 0) {
+                ForEach(rows, id: \.self) { row in
+                    HStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.model)
+                                .lineLimit(1)
+                                .help(row.model)
+                            Text(
+                                "\(row.provider) · "
+                                    + "\(viewModel.deviceName(for: row.deviceID))"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(
+                            row.totalTokens.formatted(
+                                .number.notation(.compactName)
+                            )
+                        )
+                        .monospacedDigit()
+                        .fixedSize()
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(
+                        "\(row.model), \(row.provider), "
+                            + "\(viewModel.deviceName(for: row.deviceID)), "
+                            + "\(row.totalTokens) tokens"
+                    )
+                    .padding(.vertical, 7)
+                    Divider()
+                }
+            }
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 10) {
+            Spacer()
+            if controller.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Refreshing usage")
+            }
+            Button {
+                Task {
+                    await controller.refreshAfterViewUpdate()
+                }
+            } label: {
+                Label("Refresh", systemImage: "arrow.clockwise")
+            }
+            .disabled(controller.isRefreshing)
+            Button("Settings…") {
+                openSettings()
+            }
+            Button("Quit") {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 44)
+    }
+
+    private var snapshotFooter: some View {
+        HStack(spacing: 10) {
+            Spacer()
+            Text("Refresh")
+                .fontWeight(.medium)
+            Text("Settings…")
+                .fontWeight(.medium)
+            Text("Quit")
+        }
+        .font(.caption)
+        .padding(.horizontal, 16)
+        .frame(minHeight: 44)
+    }
+
+}

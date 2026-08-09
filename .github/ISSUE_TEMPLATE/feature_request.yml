@@ -1,0 +1,36 @@
+name: Feature request
+description: Propose a focused ContextGauge improvement.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem should ContextGauge solve?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe observable behavior, not an implementation plan.
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy and security impact
+      description: Explain any new data, permissions, network access, or storage.
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Project boundaries
+      options:
+        - label: The proposal does not require uploading raw prompts or responses.
+          required: true
+        - label: The proposal can be tested with synthetic data.
+          required: true

@@ -1,0 +1,4 @@
+{"type":"session","id":"session-normal","timestamp":"2026-08-01T10:00:00.000Z","cwd":"/private/project","version":3}
+{"type":"model_change","id":"model-1","timestamp":"2026-08-01T10:00:01.000Z","provider":"openai-codex","modelId":"gpt-5.3-codex-spark"}
+{"type":"message","id":"message-1","timestamp":"2026-08-01T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"text","text":"must not survive parsing"}],"provider":"openai-codex","model":"gpt-5.3-codex-spark","usage":{"input":100,"output":25,"cacheRead":0,"cacheWrite":0,"totalTokens":125,"cost":{"total":0.0125}}}}
+{"type":"message","id":"no-usage","timestamp":"2026-08-01T10:00:03.000Z","message":{"role":"user","content":[{"type":"text","text":"ignored"}]}}

@@ -1,0 +1,131 @@
+name: ContextGauge
+options:
+  bundleIdPrefix: com.example.contextgauge
+  deploymentTarget:
+    macOS: "14.0"
+    iOS: "17.0"
+  xcodeVersion: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    DEVELOPMENT_TEAM: ""
+targets:
+  TokenHubMacCore:
+    type: framework
+    platform: macOS
+    sources:
+      - Sources/TokenHubCore
+      - Sources/CSQLite
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.contextgauge.core
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_MODULE_NAME: TokenHubMacCore
+        OTHER_SWIFT_FLAGS: "$(inherited) -Xcc -fmodule-map-file=$(SRCROOT)/Sources/CSQLite/module.modulemap -Xcc -I$(SRCROOT)/Sources/CSQLite"
+        OTHER_LDFLAGS: -lsqlite3
+  TokenHubMac:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/TokenHubMac
+    dependencies:
+      - target: TokenHubMacCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.contextgauge.mac
+        PRODUCT_NAME: ContextGauge
+        PRODUCT_MODULE_NAME: TokenHubMac
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: ContextGauge
+        INFOPLIST_KEY_TokenHubCloudContainerIdentifier: iCloud.com.example.ContextGauge
+        CODE_SIGN_ENTITLEMENTS: Sources/TokenHubMac/TokenHubMac.entitlements
+        OTHER_SWIFT_FLAGS: "$(inherited) -Xcc -fmodule-map-file=$(SRCROOT)/Sources/CSQLite/module.modulemap -Xcc -I$(SRCROOT)/Sources/CSQLite"
+      configs:
+        Debug:
+          CODE_SIGNING_ALLOWED: NO
+          ENABLE_APP_SANDBOX: NO
+          ENABLE_HARDENED_RUNTIME: NO
+        Release:
+          CODE_SIGNING_ALLOWED: YES
+          ENABLE_APP_SANDBOX: NO
+          ENABLE_HARDENED_RUNTIME: YES
+  TokenHubMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/TokenHubMacTests
+      - path: Tests/TokenHubCoreTests/Fixtures/senpi-normal.jsonl
+        buildPhase: resources
+    dependencies:
+      - target: TokenHubMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.contextgauge.mactests
+        GENERATE_INFOPLIST_FILE: YES
+        OTHER_SWIFT_FLAGS: "$(inherited) -Xcc -fmodule-map-file=$(SRCROOT)/Sources/CSQLite/module.modulemap -Xcc -I$(SRCROOT)/Sources/CSQLite"
+        CODE_SIGNING_ALLOWED: NO
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ContextGauge.app/Contents/MacOS/ContextGauge"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+  TokenHubCore:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Sources/TokenHubCore
+        excludes:
+          - CollectionCoordinator.swift
+          - LocalUsageService.swift
+          - SQLiteUsageStore.swift
+          - SQLiteUsageStore+Events.swift
+          - SQLiteUsageStore+Aggregates.swift
+          - SQLiteUsageStore+Quota.swift
+          - SenpiUsageCollector.swift
+          - CodexUsageCollector.swift
+          - ClaudeUsageCollector.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.contextgauge.ioscore
+        GENERATE_INFOPLIST_FILE: YES
+  TokenHubiOS:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/TokenHubiOS
+    dependencies:
+      - target: TokenHubCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.contextgauge.ios
+        PRODUCT_NAME: ContextGauge
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: ContextGauge
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        CODE_SIGN_ENTITLEMENTS: Sources/TokenHubiOS/TokenHubiOS.entitlements
+        INFOPLIST_KEY_TokenHubCloudContainerIdentifier: iCloud.com.example.ContextGauge
+        CODE_SIGNING_ALLOWED: NO
+  TokenHubiOSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - Tests/TokenHubiOSUITests
+    dependencies:
+      - target: TokenHubiOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.contextgauge.iosuitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  TokenHubMac:
+    build:
+      targets:
+        TokenHubMac: all
+    test:
+      targets:
+        - TokenHubMacTests
+  TokenHubiOS:
+    build:
+      targets:
+        TokenHubiOS: all
+    test:
+      targets:
+        - TokenHubiOSUITests

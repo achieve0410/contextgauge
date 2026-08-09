@@ -1,0 +1,3 @@
+{"type":"user","timestamp":"2026-08-08T14:00:00Z","sessionId":"claude-malformed","message":{"content":"private prompt"}}
+{complete but malformed}
+{"type":"assistant","timestamp":"2026-08-08T14:00:01Z","sessionId":"claude-malformed","requestId":"req-after","message":{"id":"msg-after","model":"claude-sonnet-4-5","usage":{"input_tokens":8,"cache_read_input_tokens":3,"cache_creation_input_tokens":2,"output_tokens":4}}}

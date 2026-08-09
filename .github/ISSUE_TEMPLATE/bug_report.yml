@@ -1,0 +1,54 @@
+name: Bug report
+description: Report a reproducible ContextGauge defect using synthetic data.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach real logs, credentials, databases, exports, screenshots,
+        account names, device names, or absolute home paths. Use the smallest
+        synthetic reproduction. Report vulnerabilities privately through the
+        Security link instead.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Synthetic reproduction
+      description: List deterministic steps and synthetic inputs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: ContextGauge revision, macOS/iOS version, and Xcode version.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification output
+      description: List commands and sanitized error codes, not raw logs.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I removed credentials, personal data, real logs, and local paths.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
