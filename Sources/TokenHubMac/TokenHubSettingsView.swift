@@ -281,16 +281,28 @@ struct TokenHubSettingsView: View {
         }
     }
 
-    private var diagnosticsSettings: some View {
+    var diagnosticsSettings: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 GroupBox("Collection") {
                     VStack(alignment: .leading, spacing: 8) {
                         if let collected = controller.viewModel.lastCollectionAt {
-                            Label(
-                                "Collected \(collected, style: .relative)",
-                                systemImage: "externaldrive"
-                            )
+                            if controller.viewModel.collectorErrors.isEmpty {
+                                Label(
+                                    "Collected \(collected, style: .relative)",
+                                    systemImage: "externaldrive"
+                                )
+                            } else {
+                                Label {
+                                    Text("Collection attempted ")
+                                        + Text(collected, style: .relative)
+                                } icon: {
+                                    Image(
+                                        systemName:
+                                            "externaldrive.badge.exclamationmark"
+                                    )
+                                }
+                            }
                         } else {
                             Text("No collection has completed.")
                                 .foregroundStyle(.secondary)
@@ -299,11 +311,32 @@ struct TokenHubSettingsView: View {
                             controller.viewModel.collectorErrors,
                             id: \.self
                         ) { status in
-                            Label(
-                                "\(status.source.rawValue): "
-                                    + "\(status.errorCode ?? "error")",
-                                systemImage: "exclamationmark.triangle"
-                            )
+                            Label {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(
+                                        "\(sourceTitle(status.source)): "
+                                            + collectorErrorTitle(
+                                                status.errorCode
+                                            )
+                                    )
+                                    Text(
+                                        collectorErrorGuidance(
+                                            status.errorCode,
+                                            source: status.source
+                                        )
+                                    )
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(
+                                        horizontal: false,
+                                        vertical: true
+                                    )
+                                }
+                            } icon: {
+                                Image(
+                                    systemName: "exclamationmark.triangle"
+                                )
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -330,6 +363,43 @@ struct TokenHubSettingsView: View {
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func sourceTitle(_ source: UsageSource) -> String {
+        switch source {
+        case .senpi: "Senpi"
+        case .codex: "Codex"
+        case .claude: "Claude Code"
+        }
+    }
+
+    private func collectorErrorTitle(_ errorCode: String?) -> String {
+        switch errorCode {
+        case "root-missing": "Source folder not found"
+        case "no-jsonl-files": "No usage logs found"
+        case "malformed-row": "Some usage rows were skipped"
+        case "pricing-incomplete": "Cost estimate incomplete"
+        case "collection-failed": "Collection failed"
+        default: "Collection needs attention"
+        }
+    }
+
+    private func collectorErrorGuidance(
+        _ errorCode: String?,
+        source: UsageSource
+    ) -> String {
+        switch errorCode {
+        case "root-missing", "no-jsonl-files":
+            "Run \(sourceTitle(source)) once, then choose Refresh in the menu."
+        case "malformed-row":
+            "Token totals exclude malformed rows and may be incomplete."
+        case "pricing-incomplete":
+            "Token totals are available, but some models need catalog pricing."
+        case "collection-failed":
+            "Choose Refresh again. If this persists, verify the source setup."
+        default:
+            "Choose Refresh again. This status is safe to include in a bug report."
         }
     }
 

@@ -45,6 +45,9 @@ struct TokenHubMenuView: View {
                     )
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    if !viewModel.rows.isEmpty {
+                        insightsSummary
+                    }
                     dailyUsageSection
                     if snapshotMode {
                         snapshotUsageRows
@@ -269,11 +272,7 @@ struct TokenHubMenuView: View {
     @ViewBuilder
     private var usageRows: some View {
         if viewModel.rows.isEmpty {
-            ContentUnavailableView(
-                "No usage in this period",
-                systemImage: "chart.bar.xaxis"
-            )
-            .frame(height: 56)
+            emptyUsageView
         } else {
             modelRows(viewModel.rows)
         }
@@ -282,14 +281,82 @@ struct TokenHubMenuView: View {
     @ViewBuilder
     private var snapshotUsageRows: some View {
         if viewModel.rows.isEmpty {
-            ContentUnavailableView(
-                "No usage in this period",
-                systemImage: "chart.bar.xaxis"
-            )
-            .frame(height: 56)
+            emptyUsageView
         } else {
             modelRows(Array(viewModel.rows.prefix(6)))
         }
+    }
+
+    private var emptyUsageView: some View {
+        ContentUnavailableView(
+            "No matching usage",
+            systemImage: "chart.bar.xaxis",
+            description: Text(
+                "Run Senpi, Codex, or Claude Code, or choose another period. "
+                    + "Refresh, then open Settings > Diagnostics if data stays empty."
+            )
+        )
+        .frame(minHeight: 112)
+    }
+
+    private var insightsSummary: some View {
+        HStack(alignment: .top, spacing: 8) {
+            insightCard(
+                title: "Period change",
+                value: periodChangeValue,
+                detail: viewModel.periodComparison.currentTokens.formatted()
+                    + " current · "
+                    + viewModel.periodComparison.previousTokens.formatted()
+                    + " previous"
+            )
+            insightCard(
+                title: "Token mix",
+                value: viewModel.tokenComposition.inputTokens.formatted()
+                    + " input · "
+                    + viewModel.tokenComposition.outputTokens.formatted()
+                    + " output",
+                detail: viewModel.tokenComposition.cacheReadTokens.formatted()
+                    + " cache read · "
+                    + viewModel.tokenComposition.cacheWriteTokens.formatted()
+                    + " cache write"
+            )
+        }
+    }
+
+    private func insightCard(
+        title: String,
+        value: String,
+        detail: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.secondary.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 8)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    private var periodChangeValue: String {
+        guard let percentChange = viewModel.periodComparison.percentChange else {
+            return "No previous usage"
+        }
+        let rounded = NSDecimalNumber(decimal: percentChange).intValue
+        let prefix = rounded > 0 ? "+" : ""
+        return "\(prefix)\(rounded)%"
     }
 
     private func modelRows(

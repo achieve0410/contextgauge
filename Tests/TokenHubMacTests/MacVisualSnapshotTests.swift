@@ -451,8 +451,32 @@ final class MacVisualSnapshotTests: XCTestCase {
     func testRenderCompactMenuAndSettingsSnapshots() async throws {
         let temporary = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let projectRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let evidenceRoot = projectRoot.appending(
+            path: ".omo/evidence/market-value",
+            directoryHint: .isDirectory
+        )
+        let snapshotRequest = try? String(
+            contentsOf: evidenceRoot.appending(
+                path: "snapshot-request.txt"
+            ),
+            encoding: .utf8
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        let outputDirectory = snapshotRequest.flatMap { request in
+            request.isEmpty ? nil : evidenceRoot.appending(
+                path: request,
+                directoryHint: .isDirectory
+            )
+        } ?? temporary
         try FileManager.default.createDirectory(
             at: temporary,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: outputDirectory,
             withIntermediateDirectories: true
         )
         defer {
@@ -469,7 +493,16 @@ final class MacVisualSnapshotTests: XCTestCase {
                     databaseURL: temporary.appending(path: "usage.sqlite"),
                     deviceID: "responsive-ui",
                     deviceName: "Responsive UI",
-                    roots: [:],
+                    roots: Dictionary(
+                        uniqueKeysWithValues: UsageSource.allCases.map { source in
+                            (
+                                source,
+                                temporary.appending(
+                                    path: "missing-\(source.rawValue)"
+                                )
+                            )
+                        }
+                    ),
                     parserVersion: 1
                 )
             },
@@ -479,7 +512,6 @@ final class MacVisualSnapshotTests: XCTestCase {
             )
         )
         await controller.refresh()
-        let outputDirectory = temporary
 
         let menuView = NSHostingView(
             rootView: TokenHubMenuView(
@@ -513,6 +545,27 @@ final class MacVisualSnapshotTests: XCTestCase {
             settingsView,
             to: outputDirectory.appending(
                 path: "macos-settings-compact.png"
+            )
+        )
+
+        let diagnosticsView = NSHostingView(
+            rootView: TokenHubSettingsView(controller: controller)
+                .diagnosticsSettings
+                .frame(width: 520, height: 420)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .environment(\.colorScheme, .light)
+        )
+        diagnosticsView.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: 520,
+            height: 420
+        )
+        diagnosticsView.layoutSubtreeIfNeeded()
+        try render(
+            diagnosticsView,
+            to: outputDirectory.appending(
+                path: "macos-diagnostics-compact.png"
             )
         )
     }
@@ -776,6 +829,26 @@ final class MacVisualSnapshotTests: XCTestCase {
         XCTAssertNotNil(
             bitmap.representation(using: .png, properties: [:])
         )
+        if let evidenceURL = try requestedVisualEvidenceURL(
+            named: "macos-insights.png"
+        ) {
+            let evidenceView = NSHostingView(
+                rootView: TokenHubMenuView(
+                    controller: controller,
+                    snapshotMode: true,
+                    availableScreenHeight: 720
+                )
+                .environment(\.colorScheme, .light)
+            )
+            evidenceView.frame = NSRect(
+                x: 0,
+                y: 0,
+                width: 420,
+                height: 704
+            )
+            evidenceView.layoutSubtreeIfNeeded()
+            try render(evidenceView, to: evidenceURL)
+        }
 
         XCTAssertGreaterThan(bitmap.pixelsWide, 700)
         XCTAssertGreaterThan(bitmap.pixelsHigh, 500)
@@ -840,6 +913,37 @@ private func render(
         bitmap.representation(using: .png, properties: [:])
     )
     try png.write(to: outputURL, options: .atomic)
+}
+
+private func requestedVisualEvidenceURL(
+    named fileName: String
+) throws -> URL? {
+    let projectRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let evidenceRoot = projectRoot.appending(
+        path: ".omo/evidence/market-value",
+        directoryHint: .isDirectory
+    )
+    let requestURL = evidenceRoot.appending(path: "snapshot-request.txt")
+    guard FileManager.default.fileExists(atPath: requestURL.path) else {
+        return nil
+    }
+    let request = try String(contentsOf: requestURL, encoding: .utf8)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !request.isEmpty else {
+        return nil
+    }
+    let outputDirectory = evidenceRoot.appending(
+        path: request,
+        directoryHint: .isDirectory
+    )
+    try FileManager.default.createDirectory(
+        at: outputDirectory,
+        withIntermediateDirectories: true
+    )
+    return outputDirectory.appending(path: fileName)
 }
 
 private actor RefreshInvocationRecorder {
