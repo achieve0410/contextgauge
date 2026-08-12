@@ -6,19 +6,22 @@ public struct LocalUsageConfiguration: Sendable {
     public let deviceName: String
     public let roots: [UsageSource: URL]
     public let parserVersion: Int
+    public let additionalRoots: [UsageSource: [URL]]
 
     public init(
         databaseURL: URL,
         deviceID: String,
         deviceName: String,
         roots: [UsageSource: URL],
-        parserVersion: Int
+        parserVersion: Int,
+        additionalRoots: [UsageSource: [URL]] = [:]
     ) {
         self.databaseURL = databaseURL
         self.deviceID = deviceID
         self.deviceName = deviceName
         self.roots = roots
         self.parserVersion = parserVersion
+        self.additionalRoots = additionalRoots
     }
 
     public static func systemDefault(
@@ -50,7 +53,10 @@ public struct LocalUsageConfiguration: Sendable {
                 .codex: codexRoot,
                 .claude: home.appending(path: ".claude/projects"),
             ],
-            parserVersion: 2
+            parserVersion: 2,
+            additionalRoots: [
+                .senpi: [home.appending(path: ".omo/sessions")],
+            ]
         )
     }
 
@@ -82,10 +88,10 @@ public final class LocalUsageService {
             guard let root = configuration.roots[source] else { continue }
             var errorCode: String?
             do {
-                let files = try jsonlFiles(at: root)
-                guard !files.isEmpty else {
-                    throw RootAvailabilityError.noJSONLFiles
-                }
+                let files = try jsonlFiles(
+                    at: [root]
+                        + (configuration.additionalRoots[source] ?? [])
+                )
                 for file in files {
                     let result = try scan(file, source: source)
                     if !result.diagnostics.isEmpty {
@@ -190,6 +196,27 @@ public final class LocalUsageService {
                 collector: ClaudeUsageCollector(deviceID: configuration.deviceID)
             )
         }
+    }
+
+    private func jsonlFiles(at roots: [URL]) throws -> [URL] {
+        var files = Set<URL>()
+        var hasAvailableRoot = false
+        for root in roots {
+            do {
+                let rootFiles = try jsonlFiles(at: root)
+                hasAvailableRoot = true
+                files.formUnion(rootFiles)
+            } catch RootAvailabilityError.rootMissing {
+                continue
+            }
+        }
+        guard hasAvailableRoot else {
+            throw RootAvailabilityError.rootMissing
+        }
+        guard !files.isEmpty else {
+            throw RootAvailabilityError.noJSONLFiles
+        }
+        return files.sorted { $0.path < $1.path }
     }
 
     private func jsonlFiles(at root: URL) throws -> [URL] {

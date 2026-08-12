@@ -126,6 +126,46 @@ struct LocalUsageServiceTests {
         #expect(try persisted.devices() == second.devices)
     }
 
+    @Test("Collects Omo usage when the legacy Senpi root is missing")
+    func additionalOmoRootCollection() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let omoRoot = directory.appending(
+            path: ".omo/sessions",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(
+            at: omoRoot,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixtureURL = try #require(
+            Bundle.module.url(
+                forResource: "senpi-normal",
+                withExtension: "jsonl",
+                subdirectory: "Fixtures"
+            )
+        )
+        try Data(contentsOf: fixtureURL).write(
+            to: omoRoot.appending(path: "session.jsonl")
+        )
+        let service = try LocalUsageService(
+            configuration: LocalUsageConfiguration(
+                databaseURL: directory.appending(path: "usage.sqlite"),
+                deviceID: "omo-mac",
+                deviceName: "Omo Mac",
+                roots: [.senpi: directory.appending(path: ".senpi/sessions")],
+                parserVersion: 1,
+                additionalRoots: [.senpi: [omoRoot]]
+            )
+        )
+
+        let snapshot = try service.collect()
+
+        #expect(snapshot.dailyUsage.reduce(0) { $0 + $1.totalTokens } == 125)
+        #expect(snapshot.collectorStatuses.first?.errorCode == nil)
+    }
+
     @Test("Persists a stable UUID independent of the device name")
     func stableDeviceIdentifier() throws {
         let directory = FileManager.default.temporaryDirectory

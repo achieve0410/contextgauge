@@ -163,7 +163,10 @@ private func runCollect(_ arguments: [String]) throws {
         deviceID: options.deviceID ?? defaults.deviceID,
         deviceName: options.deviceName ?? defaults.deviceName,
         roots: roots,
-        parserVersion: defaults.parserVersion
+        parserVersion: defaults.parserVersion,
+        additionalRoots: options.senpiRoot == nil
+            ? defaults.additionalRoots
+            : [:]
     )
     let snapshot = try LocalUsageService(configuration: configuration).collect()
     try writeJSON(Output(snapshot: snapshot))
