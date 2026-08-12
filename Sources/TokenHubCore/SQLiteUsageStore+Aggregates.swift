@@ -91,7 +91,8 @@ extension SQLiteUsageStore {
         )
         defer { sqlite3_finalize(statement) }
         var result: [DailyUsage] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
+        var stepResult = sqlite3_step(statement)
+        while stepResult == SQLITE_ROW {
             guard let source = UsageSource(rawValue: text(statement, column: 2))
             else {
                 throw SQLiteUsageStoreError.step("Unknown usage source")
@@ -120,6 +121,10 @@ extension SQLiteUsageStore {
                     isCostComplete: sqlite3_column_int64(statement, 12) != 0
                 )
             )
+            stepResult = sqlite3_step(statement)
+        }
+        guard stepResult == SQLITE_DONE else {
+            throw SQLiteUsageStoreError.step(errorMessage)
         }
         return result
     }
@@ -163,7 +168,8 @@ extension SQLiteUsageStore {
         )
         defer { sqlite3_finalize(statement) }
         var result: [Device] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
+        var stepResult = sqlite3_step(statement)
+        while stepResult == SQLITE_ROW {
             result.append(
                 Device(
                     id: text(statement, column: 0),
@@ -172,6 +178,10 @@ extension SQLiteUsageStore {
                     lastSyncedAt: date(statement, column: 3)
                 )
             )
+            stepResult = sqlite3_step(statement)
+        }
+        guard stepResult == SQLITE_DONE else {
+            throw SQLiteUsageStoreError.step(errorMessage)
         }
         return result
     }

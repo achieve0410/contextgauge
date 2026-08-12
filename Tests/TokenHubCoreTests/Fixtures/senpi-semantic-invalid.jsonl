@@ -1,0 +1,2 @@
+{"type":"session","id":"market-senpi-session","timestamp":"2026-08-11T00:00:00Z"}
+{"type":"message","timestamp":"2026-08-11T00:00:01Z","message":{"role":"assistant","provider":"openai","model":"gpt-5","usage":{"input":10,"output":2,"cacheRead":0,"cacheWrite":0,"totalTokens":12}}}

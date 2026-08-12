@@ -35,17 +35,36 @@ public struct ClaudeUsageCollector: UsageCollector {
                 guard let row = try JSONSerialization.jsonObject(with: line) as? [String: Any] else { throw ParseError.invalidRow }
                 if row["type"] as? String == "assistant",
                    let message = row["message"] as? [String: Any],
-                   let usage = message["usage"] as? [String: Any],
-                   let sessionID = Self.sessionID(row: row, message: message),
-                   let messageID = message["id"] as? String,
-                   let requestID = row["requestId"] as? String ?? row["request_id"] as? String,
-                   let timestamp = row["timestamp"] as? String,
-                   let occurredAt = Self.parseDate(timestamp) {
+                   let usage = message["usage"] as? [String: Any]
+                {
+                    guard let sessionID = Self.sessionID(
+                        row: row,
+                        message: message
+                    ),
+                    let messageID = message["id"] as? String,
+                    let requestID =
+                        row["requestId"] as? String
+                            ?? row["request_id"] as? String,
+                    let timestamp = row["timestamp"] as? String,
+                    let occurredAt = Self.parseDate(timestamp),
+                    let input = Self.integer(
+                        usage["input_tokens"],
+                        required: true
+                    ),
+                    let output = Self.integer(
+                        usage["output_tokens"],
+                        required: true
+                    ),
+                    let cacheRead = Self.integer(
+                        usage["cache_read_input_tokens"]
+                    ),
+                    let cacheWrite = Self.integer(
+                        usage["cache_creation_input_tokens"]
+                    )
+                    else {
+                        throw ParseError.invalidRow
+                    }
                     let eventID = "\(messageID):\(requestID)"
-                    let input = Self.integer(usage["input_tokens"])
-                    let output = Self.integer(usage["output_tokens"])
-                    let cacheRead = Self.integer(usage["cache_read_input_tokens"])
-                    let cacheWrite = Self.integer(usage["cache_creation_input_tokens"])
                     let event = pricingCatalog.applying(to: UsageEvent(
                         id: UsageEvent.stableID(source: .claude, sessionID: sessionID, eventID: eventID, usageSequence: 0),
                         deviceID: deviceID, source: .claude, sessionID: sessionID, eventID: eventID,
@@ -72,7 +91,18 @@ public struct ClaudeUsageCollector: UsageCollector {
         if let metadata = message["metadata"] as? [String: Any] { return metadata["sessionId"] as? String }
         return nil
     }
-    private static func integer(_ value: Any?) -> Int { max(0, (value as? NSNumber)?.intValue ?? 0) }
+    private static func integer(
+        _ value: Any?,
+        required: Bool = false
+    ) -> Int? {
+        guard let value else {
+            return required ? nil : 0
+        }
+        guard let number = value as? NSNumber, number.intValue >= 0 else {
+            return nil
+        }
+        return number.intValue
+    }
     private static func parseDate(_ value: String) -> Date? {
         let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)

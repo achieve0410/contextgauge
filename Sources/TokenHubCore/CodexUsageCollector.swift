@@ -64,15 +64,32 @@ public struct CodexUsageCollector: IncrementalUsageCollector {
                         usageSequence = 0
                     }
                     turnID = nextTurnID
-                } else if type == "event_msg", payload?["type"] as? String == "token_count",
-                          let info = payload?["info"] as? [String: Any], let sessionID,
-                          let usage = (info["last_token_usage"] ?? info["total_token_usage"]) as? [String: Any],
+                } else if type == "event_msg",
+                          payload?["type"] as? String == "token_count"
+                {
+                    guard let info = payload?["info"] as? [String: Any],
+                          let sessionID,
+                          let usage = (
+                              info["last_token_usage"]
+                                  ?? info["total_token_usage"]
+                          ) as? [String: Any],
                           let timestamp = row["timestamp"] as? String,
-                          let occurredAt = Self.parseDate(timestamp) {
+                          let occurredAt = Self.parseDate(timestamp),
+                          let rawInput = Self.integer(
+                              usage["input_tokens"],
+                              required: true
+                          ),
+                          let cache = Self.integer(
+                              usage["cached_input_tokens"]
+                          ),
+                          let output = Self.integer(
+                              usage["output_tokens"],
+                              required: true
+                          )
+                    else {
+                        throw ParseError.invalidRow
+                    }
                     let eventID = Self.identity(in: info) ?? turnID ?? timestamp
-                    let rawInput = Self.integer(usage["input_tokens"])
-                    let cache = Self.integer(usage["cached_input_tokens"])
-                    let output = Self.integer(usage["output_tokens"])
                     let input = max(0, rawInput - cache)
                     let event = pricingCatalog.applying(to: UsageEvent(
                         id: UsageEvent.stableID(source: .codex, sessionID: "turn", eventID: eventID, usageSequence: usageSequence),
@@ -111,7 +128,18 @@ public struct CodexUsageCollector: IncrementalUsageCollector {
     private static func identity(in object: [String: Any]?) -> String? {
         ["turn_id", "turnId", "request_id", "requestId", "message_id", "messageId"].lazy.compactMap { object?[$0] as? String }.first
     }
-    private static func integer(_ value: Any?) -> Int { max(0, (value as? NSNumber)?.intValue ?? 0) }
+    private static func integer(
+        _ value: Any?,
+        required: Bool = false
+    ) -> Int? {
+        guard let value else {
+            return required ? nil : 0
+        }
+        guard let number = value as? NSNumber, number.intValue >= 0 else {
+            return nil
+        }
+        return number.intValue
+    }
     private static func parseDate(_ value: String) -> Date? {
         let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)

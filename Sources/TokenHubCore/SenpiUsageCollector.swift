@@ -51,7 +51,13 @@ public struct SenpiUsageCollector: IncrementalUsageCollector {
 
             do {
                 let envelope = try decoder.decode(SenpiEnvelope.self, from: line)
-                process(envelope, state: &state, events: &events)
+                process(
+                    envelope,
+                    lineNumber: lineNumber,
+                    state: &state,
+                    events: &events,
+                    diagnostics: &diagnostics
+                )
             } catch {
                 let isLastLine = next == data.endIndex
                 if isLastLine, Self.looksIncomplete(line) {
@@ -84,8 +90,10 @@ public struct SenpiUsageCollector: IncrementalUsageCollector {
 
     private func process(
         _ envelope: SenpiEnvelope,
+        lineNumber: Int,
         state: inout ParseState,
-        events: inout [UsageEvent]
+        events: inout [UsageEvent],
+        diagnostics: inout [CollectorDiagnostic]
     ) {
         switch envelope.type {
         case "session":
@@ -94,11 +102,20 @@ public struct SenpiUsageCollector: IncrementalUsageCollector {
             state.provider = envelope.provider
             state.model = envelope.modelID
         case "message":
-            guard let usage = envelope.message?.usage,
-                  let sessionID = state.sessionID,
+            guard let usage = envelope.message?.usage else {
+                return
+            }
+            guard let sessionID = state.sessionID,
                   let eventID = envelope.id,
                   let occurredAt = Self.parseDate(envelope.timestamp)
             else {
+                diagnostics.append(
+                    CollectorDiagnostic(
+                        source: .senpi,
+                        line: lineNumber,
+                        message: "Malformed usage row"
+                    )
+                )
                 return
             }
             let provider = envelope.message?.provider ?? state.provider ?? "unknown"
