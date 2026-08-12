@@ -7,7 +7,7 @@ enum TokenHubMenuLayout {
     static func minimumHeight(
         visibleScreenHeight: CGFloat
     ) -> CGFloat {
-        min(420, maximumHeight(visibleScreenHeight: visibleScreenHeight))
+        maximumHeight(visibleScreenHeight: visibleScreenHeight)
     }
 
     static func maximumHeight(
@@ -17,9 +17,22 @@ enum TokenHubMenuLayout {
     }
 }
 
+enum DailyUsageChartSelection {
+    static func nearestPoint(
+        to date: Date,
+        in points: [DailyUsagePoint]
+    ) -> DailyUsagePoint? {
+        points.min {
+            abs($0.day.timeIntervalSince(date))
+                < abs($1.day.timeIntervalSince(date))
+        }
+    }
+}
+
 struct TokenHubMenuView: View {
     @Environment(\.openSettings) private var openSettings
     @ObservedObject var controller: MacDashboardController
+    @State private var hoveredUsagePoint: DailyUsagePoint?
     var snapshotMode = false
     var availableScreenHeight: CGFloat?
 
@@ -219,7 +232,13 @@ struct TokenHubMenuView: View {
                         x: .value("Date", point.day, unit: .day),
                         y: .value("Tokens", point.totalTokens)
                     )
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(
+                        hoveredUsagePoint?.day == point.day
+                            ? Color.accentColor
+                            : Color.accentColor.opacity(
+                                hoveredUsagePoint == nil ? 1 : 0.45
+                            )
+                    )
                     .accessibilityLabel(
                         point.day.formatted(
                             date: .abbreviated,
@@ -229,6 +248,19 @@ struct TokenHubMenuView: View {
                     .accessibilityValue(
                         "\(point.totalTokens.formatted()) tokens"
                     )
+
+                    if hoveredUsagePoint?.day == point.day {
+                        RuleMark(
+                            x: .value("Selected date", point.day)
+                        )
+                        .foregroundStyle(.secondary.opacity(0.45))
+                        .lineStyle(
+                            StrokeStyle(
+                                lineWidth: 1,
+                                dash: [3, 3]
+                            )
+                        )
+                    }
                 }
                 .chartXAxis {
                     AxisMarks(
@@ -263,10 +295,95 @@ struct TokenHubMenuView: View {
                         }
                     }
                 }
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        Rectangle()
+                            .fill(.clear)
+                            .contentShape(Rectangle())
+                            .onContinuousHover { phase in
+                                switch phase {
+                                case let .active(location):
+                                    guard
+                                        let plotFrame = proxy.plotFrame,
+                                        let date: Date = proxy.value(
+                                            atX: location.x
+                                                - geometry[plotFrame].origin.x
+                                        )
+                                    else {
+                                        hoveredUsagePoint = nil
+                                        return
+                                    }
+                                    hoveredUsagePoint =
+                                        DailyUsageChartSelection.nearestPoint(
+                                            to: date,
+                                            in: viewModel.dailySeries
+                                        )
+                                case .ended:
+                                    hoveredUsagePoint = nil
+                                }
+                            }
+                            .overlay(alignment: .topLeading) {
+                            if
+                                let point = hoveredUsagePoint,
+                                let plotFrame = proxy.plotFrame,
+                                let xPosition = proxy.position(
+                                    forX: point.day
+                                )
+                            {
+                                let chartX =
+                                    geometry[plotFrame].origin.x + xPosition
+                                dailyUsageTooltip(point)
+                                    .fixedSize()
+                                    .position(
+                                        x: min(
+                                            max(chartX, 74),
+                                            geometry.size.width - 74
+                                        ),
+                                        y: 34
+                                    )
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                    }
+                }
                 .frame(height: 160)
                 .accessibilityLabel("Daily token usage chart")
             }
         }
+    }
+
+    private func dailyUsageTooltip(
+        _ point: DailyUsagePoint
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(
+                point.day.formatted(
+                    .dateTime
+                        .weekday(.abbreviated)
+                        .month(.abbreviated)
+                        .day()
+                )
+            )
+            .foregroundStyle(.secondary)
+            Text("\(point.totalTokens.formatted()) tokens")
+                .font(.caption.monospacedDigit().weight(.semibold))
+            Text(
+                NSDecimalNumber(
+                    decimal: point.estimatedCostUSD
+                ).doubleValue.formatted(.currency(code: "USD"))
+            )
+            .foregroundStyle(.secondary)
+        }
+        .font(.caption2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(.separator.opacity(0.7))
+        }
+        .shadow(radius: 3, y: 1)
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder

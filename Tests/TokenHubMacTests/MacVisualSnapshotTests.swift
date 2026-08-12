@@ -423,13 +423,19 @@ final class MacVisualSnapshotTests: XCTestCase {
             TokenHubMenuLayout.minimumHeight(
                 visibleScreenHeight: 480
             ),
-            420
+            464
         )
         XCTAssertEqual(
             TokenHubMenuLayout.minimumHeight(
-                visibleScreenHeight: 240
+                visibleScreenHeight: 600
             ),
-            240
+            584
+        )
+        XCTAssertEqual(
+            TokenHubMenuLayout.minimumHeight(
+                visibleScreenHeight: 900
+            ),
+            720
         )
     }
 
@@ -445,6 +451,56 @@ final class MacVisualSnapshotTests: XCTestCase {
             Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? Bool,
             true
         )
+    }
+
+    func testDailyUsageChartSelectionUsesClosestDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(
+            TimeZone(secondsFromGMT: 0)
+        )
+        let firstDay = try XCTUnwrap(
+            calendar.date(
+                from: DateComponents(
+                    year: 2026,
+                    month: 8,
+                    day: 10
+                )
+            )
+        )
+        let secondDay = try XCTUnwrap(
+            calendar.date(byAdding: .day, value: 1, to: firstDay)
+        )
+        let snapshot = DashboardSnapshot(
+            dailyUsage: [
+                dailyUsage(day: firstDay, totalTokens: 1_000),
+                dailyUsage(day: secondDay, totalTokens: 2_000),
+            ],
+            quotaSnapshots: [],
+            devices: [],
+            collectorStatuses: []
+        )
+        let viewModel = DashboardViewModel(
+            snapshot: snapshot,
+            period: .sevenDays,
+            deviceID: nil,
+            now: secondDay,
+            calendar: calendar
+        )
+        let hoveredDate = try XCTUnwrap(
+            calendar.date(
+                byAdding: .hour,
+                value: 20,
+                to: firstDay
+            )
+        )
+
+        let selected = DailyUsageChartSelection.nearestPoint(
+            to: hoveredDate,
+            in: viewModel.dailySeries
+        )
+
+        XCTAssertEqual(selected?.day, secondDay)
+        XCTAssertEqual(selected?.totalTokens, 2_000)
     }
 
     @MainActor
@@ -956,4 +1012,24 @@ private actor RefreshInvocationRecorder {
     func count() -> Int {
         invocations
     }
+}
+
+private func dailyUsage(
+    day: Date,
+    totalTokens: Int
+) -> DailyUsage {
+    DailyUsage(
+        day: day,
+        deviceID: "chart-device",
+        source: .senpi,
+        provider: "openai",
+        model: "gpt-5",
+        inputTokens: totalTokens,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        totalTokens: totalTokens,
+        estimatedCostUSD: 1,
+        eventCount: 1
+    )
 }
