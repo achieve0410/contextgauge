@@ -49,7 +49,35 @@ In Xcode:
 3. Choose **Product > Run**.
 
 The unsigned local Debug app appears in the menu bar. No Apple Developer
-account or CloudKit setup is needed to view local usage.
+account or CloudKit setup is needed to view local usage. An app started with
+**Product > Run** belongs to Xcode's debug session and may stop when that
+session or Xcode exits.
+
+To use ContextGauge without keeping Xcode open, build a standalone local
+Release app from Terminal instead:
+
+```bash
+xcodegen generate --spec project.yml --project .
+xcodebuild \
+  -project ContextGauge.xcodeproj \
+  -scheme TokenHubMac \
+  -configuration Release \
+  -destination 'platform=macOS' \
+  -derivedDataPath build/DerivedData \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+```
+
+Launch the resulting app independently:
+
+```bash
+open build/DerivedData/Build/Products/Release/ContextGauge.app
+```
+
+You may copy `ContextGauge.app` to `/Applications` before launching it. Once
+started this way, the app runs independently of Xcode. This local build is
+ad-hoc signed, not Developer ID signed or notarized, and is intended for use
+on the Mac that built it.
 
 If the full Xcode installation is already selected, the `xcode-select` command
 can be skipped. Check with:
@@ -117,9 +145,9 @@ source compatibility.
 
 ### macOS
 
-1. Generate `ContextGauge.xcodeproj` with XcodeGen.
-2. Select the internal `TokenHubMac` scheme.
-3. Run on My Mac.
+For development, generate `ContextGauge.xcodeproj` with XcodeGen and run the
+internal `TokenHubMac` scheme on My Mac. For normal local use without an Xcode
+debug session, follow the standalone Release build instructions above.
 
 The app appears in the menu bar. Release builds enable hardened runtime. The
 current app is intentionally not sandboxed because automatic local-log and
